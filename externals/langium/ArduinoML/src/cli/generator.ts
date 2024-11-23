@@ -1,7 +1,15 @@
 import fs from 'fs';
 import { CompositeGeneratorNode, NL, toString } from 'langium';
 import path from 'path';
-import { Action, Actuator, App, Sensor, State, Transition } from '../language-server/generated/ast';
+import {
+    Action,
+    Actuator,
+    App, Condition,
+    Sensor,
+    SimpleTransition,
+    State,
+    TemporalTransition,
+} from '../language-server/generated/ast';
 import { extractDestinationAndName } from './cli-util';
 
 export function generateInoFile(app: App, filePath: string, destination: string | undefined): string {
@@ -24,7 +32,45 @@ function compile(app:App, fileNode:CompositeGeneratorNode){
     fileNode.append(`
         // Wiring code generated from an ArduinoML model COUCOU1
         // Application name: `+app.name+`
+        
+        class Timer {
+          private:
+            unsigned long startTime;
+            unsigned long duration;
+            bool running;
+            void (*callback)();
+        
+          public:
+            Timer() {
+              running = false;
+            }
+        
+            void setTimeout(void (*cb)(), unsigned long d) {
+              if (!running) {
+                callback = cb;
+                duration = d;
+                startTime = millis();
+                running = true;
+              }
+            }
+        
+            void update() {
+              if (running && (millis() - startTime >= duration)) {
+                running = false;
+                callback();
+              }
+            }
+        
+            void cancel() {
+              running = false;
+            }
+        };
     
+        Timer timer;`
+         ,NL
+     );
+
+    fileNode.append(`
         enum STATE {`+app.states.map(s => s.name).join(', ')+`};
     
         STATE currentState = `+app.initial.ref?.name+`;`
@@ -47,6 +93,7 @@ function compile(app:App, fileNode:CompositeGeneratorNode){
 
     fileNode.append(`
         void loop() {
+            timer.update();
             switch(currentState){
         `
     )
@@ -78,9 +125,12 @@ function compile(app:App, fileNode:CompositeGeneratorNode){
 		for(const action of state.actions){
 			compileAction(action, fileNode)
 		}
-		if (state.transition !== null){
-			compileTransition(state.transition, fileNode)
+		if (state.simpleTransition !== undefined){
+			compileSimpleTransition(state.simpleTransition, fileNode)
 		}
+        if (state.temporalTransitions !== undefined && state.temporalTransitions.length !== 0){
+            compileTemporalTransitions(state.temporalTransitions, fileNode)
+        }
 		fileNode.append(`
             break;`
         )
@@ -93,19 +143,43 @@ function compile(app:App, fileNode:CompositeGeneratorNode){
         )
 	}
 
-	function compileTransition(transition: Transition, fileNode:CompositeGeneratorNode) {
-        fileNode.append(`
-                if(`
-        )
-        fileNode.append(`digitalRead(`+transition.condition.primaryCondition.sensor.ref?.inputPin+`) == `+transition.condition.primaryCondition.value.value+``)
-
-        for(const condition of transition.condition.secondaryConditions){
-            fileNode.append(` `+condition.logicalOperator.value+` digitalRead(`+condition.right.sensor.ref?.inputPin+`) == `+condition.right.value.value+``)
-        }
-        fileNode.append(`) {
+	function compileSimpleTransition(transition: SimpleTransition, fileNode:CompositeGeneratorNode) {
+        compileCondition(transition.condition, fileNode);
+        fileNode.append(`{
                     currentState = `+transition.next.ref?.name+`;
                     delay(100);
                 }`
         )
 	}
+
+    // returns : if (myCondition == 1 && myCondition2 == 0 || ...)
+    function compileCondition(condition: Condition, fileNode:CompositeGeneratorNode) {
+        fileNode.append(`
+                if(`)
+        fileNode.append(`digitalRead(`+condition.primaryCondition.sensor.ref?.inputPin+`) == `+condition.primaryCondition.value.value+``)
+
+        for(const subCond of condition.secondaryConditions){
+            fileNode.append(` `+subCond.logicalOperator.value+` digitalRead(`+subCond.right.sensor.ref?.inputPin+`) == `+subCond.right.value.value+``)
+        }
+        fileNode.append(`)`);
+    }
+
+    function compileTemporalTransitions(transitions: TemporalTransition[], fileNode:CompositeGeneratorNode) {
+        for(const transition of transitions){
+            fileNode.append(`
+                timer.setTimeout([]() {`)
+                if (transition.condition !== undefined) {
+                    compileCondition(transition.condition, fileNode);
+                    fileNode.append(`{
+                    currentState = ` + transition.next.ref?.name + `;
+                }`);
+                }else {
+                    fileNode.append(`
+                    currentState = ` + transition.next.ref?.name + `;`);
+                }
+            fileNode.append(`
+                }, ` + transition.duration + `);`
+            )
+        }
+    }
 

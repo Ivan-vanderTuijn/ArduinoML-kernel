@@ -55,7 +55,7 @@ export function isApp(item: unknown): item is App {
 }
 
 export interface Condition extends AstNode {
-    readonly $container: Transition;
+    readonly $container: SimpleTransition | TemporalTransition;
     readonly $type: 'Condition';
     primaryCondition: PrimaryCondition
     secondaryConditions: Array<SecondaryCondition>
@@ -68,7 +68,7 @@ export function isCondition(item: unknown): item is Condition {
 }
 
 export interface LogicalOperator extends AstNode {
-    readonly $container: SecondaryCondition;
+    readonly $container: SecondaryCondition | TemporalTransition;
     readonly $type: 'LogicalOperator';
     value: string
 }
@@ -130,12 +130,26 @@ export function isSignal(item: unknown): item is Signal {
     return reflection.isInstance(item, Signal);
 }
 
+export interface SimpleTransition extends AstNode {
+    readonly $container: State;
+    readonly $type: 'SimpleTransition';
+    condition: Condition
+    next: Reference<State>
+}
+
+export const SimpleTransition = 'SimpleTransition';
+
+export function isSimpleTransition(item: unknown): item is SimpleTransition {
+    return reflection.isInstance(item, SimpleTransition);
+}
+
 export interface State extends AstNode {
     readonly $container: App;
     readonly $type: 'State';
     actions: Array<Action>
     name: string
-    transition: Transition
+    simpleTransition?: SimpleTransition
+    temporalTransitions: Array<TemporalTransition>
 }
 
 export const State = 'State';
@@ -144,17 +158,19 @@ export function isState(item: unknown): item is State {
     return reflection.isInstance(item, State);
 }
 
-export interface Transition extends AstNode {
+export interface TemporalTransition extends AstNode {
     readonly $container: State;
-    readonly $type: 'Transition';
-    condition: Condition
+    readonly $type: 'TemporalTransition';
+    condition?: Condition
+    duration: number
+    logicalOperator?: LogicalOperator
     next: Reference<State>
 }
 
-export const Transition = 'Transition';
+export const TemporalTransition = 'TemporalTransition';
 
-export function isTransition(item: unknown): item is Transition {
-    return reflection.isInstance(item, Transition);
+export function isTemporalTransition(item: unknown): item is TemporalTransition {
+    return reflection.isInstance(item, TemporalTransition);
 }
 
 export interface ArduinoMlAstType {
@@ -168,14 +184,15 @@ export interface ArduinoMlAstType {
     SecondaryCondition: SecondaryCondition
     Sensor: Sensor
     Signal: Signal
+    SimpleTransition: SimpleTransition
     State: State
-    Transition: Transition
+    TemporalTransition: TemporalTransition
 }
 
 export class ArduinoMlAstReflection extends AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return ['Action', 'Actuator', 'App', 'Brick', 'Condition', 'LogicalOperator', 'PrimaryCondition', 'SecondaryCondition', 'Sensor', 'Signal', 'State', 'Transition'];
+        return ['Action', 'Actuator', 'App', 'Brick', 'Condition', 'LogicalOperator', 'PrimaryCondition', 'SecondaryCondition', 'Sensor', 'Signal', 'SimpleTransition', 'State', 'TemporalTransition'];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -197,7 +214,8 @@ export class ArduinoMlAstReflection extends AbstractAstReflection {
                 return Actuator;
             }
             case 'App:initial':
-            case 'Transition:next': {
+            case 'SimpleTransition:next':
+            case 'TemporalTransition:next': {
                 return State;
             }
             case 'PrimaryCondition:sensor': {
@@ -232,7 +250,8 @@ export class ArduinoMlAstReflection extends AbstractAstReflection {
                 return {
                     name: 'State',
                     mandatory: [
-                        { name: 'actions', type: 'array' }
+                        { name: 'actions', type: 'array' },
+                        { name: 'temporalTransitions', type: 'array' }
                     ]
                 };
             }

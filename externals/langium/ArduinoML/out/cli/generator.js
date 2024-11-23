@@ -25,7 +25,42 @@ function compile(app, fileNode) {
     fileNode.append(`
         // Wiring code generated from an ArduinoML model COUCOU1
         // Application name: ` + app.name + `
+        
+        class Timer {
+          private:
+            unsigned long startTime;
+            unsigned long duration;
+            bool running;
+            void (*callback)();
+        
+          public:
+            Timer() {
+              running = false;
+            }
+        
+            void setTimeout(void (*cb)(), unsigned long d) {
+              if (!running) {
+                callback = cb;
+                duration = d;
+                startTime = millis();
+                running = true;
+              }
+            }
+        
+            void update() {
+              if (running && (millis() - startTime >= duration)) {
+                running = false;
+                callback();
+              }
+            }
+        
+            void cancel() {
+              running = false;
+            }
+        };
     
+        Timer timer;`, langium_1.NL);
+    fileNode.append(`
         enum STATE {` + app.states.map(s => s.name).join(', ') + `};
     
         STATE currentState = ` + ((_a = app.initial.ref) === null || _a === void 0 ? void 0 : _a.name) + `;`, langium_1.NL);
@@ -43,6 +78,7 @@ function compile(app, fileNode) {
         }`, langium_1.NL);
     fileNode.append(`
         void loop() {
+            timer.update();
             switch(currentState){
         `);
     for (const state of app.states) {
@@ -66,8 +102,11 @@ function compileState(state, fileNode) {
     for (const action of state.actions) {
         compileAction(action, fileNode);
     }
-    if (state.transition !== null) {
-        compileTransition(state.transition, fileNode);
+    if (state.simpleTransition !== undefined) {
+        compileSimpleTransition(state.simpleTransition, fileNode);
+    }
+    if (state.temporalTransitions !== undefined && state.temporalTransitions.length !== 0) {
+        compileTemporalTransitions(state.temporalTransitions, fileNode);
     }
     fileNode.append(`
             break;`);
@@ -77,17 +116,42 @@ function compileAction(action, fileNode) {
     fileNode.append(`
                 digitalWrite(` + ((_a = action.actuator.ref) === null || _a === void 0 ? void 0 : _a.outputPin) + `,` + action.value.value + `);`);
 }
-function compileTransition(transition, fileNode) {
-    var _a, _b, _c;
-    fileNode.append(`
-                if(`);
-    fileNode.append(`digitalRead(` + ((_a = transition.condition.primaryCondition.sensor.ref) === null || _a === void 0 ? void 0 : _a.inputPin) + `) == ` + transition.condition.primaryCondition.value.value + ``);
-    for (const condition of transition.condition.secondaryConditions) {
-        fileNode.append(` ` + condition.logicalOperator.value + ` digitalRead(` + ((_b = condition.right.sensor.ref) === null || _b === void 0 ? void 0 : _b.inputPin) + `) == ` + condition.right.value.value + ``);
-    }
-    fileNode.append(`) {
-                    currentState = ` + ((_c = transition.next.ref) === null || _c === void 0 ? void 0 : _c.name) + `;
+function compileSimpleTransition(transition, fileNode) {
+    var _a;
+    compileCondition(transition.condition, fileNode);
+    fileNode.append(`{
+                    currentState = ` + ((_a = transition.next.ref) === null || _a === void 0 ? void 0 : _a.name) + `;
                     delay(100);
                 }`);
+}
+// returns : if (myCondition == 1 && myCondition2 == 0 || ...)
+function compileCondition(condition, fileNode) {
+    var _a, _b;
+    fileNode.append(`
+                if(`);
+    fileNode.append(`digitalRead(` + ((_a = condition.primaryCondition.sensor.ref) === null || _a === void 0 ? void 0 : _a.inputPin) + `) == ` + condition.primaryCondition.value.value + ``);
+    for (const subCond of condition.secondaryConditions) {
+        fileNode.append(` ` + subCond.logicalOperator.value + ` digitalRead(` + ((_b = subCond.right.sensor.ref) === null || _b === void 0 ? void 0 : _b.inputPin) + `) == ` + subCond.right.value.value + ``);
+    }
+    fileNode.append(`)`);
+}
+function compileTemporalTransitions(transitions, fileNode) {
+    var _a, _b;
+    for (const transition of transitions) {
+        fileNode.append(`
+                timer.setTimeout([]() {`);
+        if (transition.condition !== undefined) {
+            compileCondition(transition.condition, fileNode);
+            fileNode.append(`{
+                    currentState = ` + ((_a = transition.next.ref) === null || _a === void 0 ? void 0 : _a.name) + `;
+                }`);
+        }
+        else {
+            fileNode.append(`
+                    currentState = ` + ((_b = transition.next.ref) === null || _b === void 0 ? void 0 : _b.name) + `;`);
+        }
+        fileNode.append(`
+                }, ` + transition.duration + `);`);
+    }
 }
 //# sourceMappingURL=generator.js.map

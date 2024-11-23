@@ -27,15 +27,18 @@ State :
 	name=ID '{'
 		actions+=Action
 		(actions+=Action)* 
-		transition=Transition
+		(simpleTransition=SimpleTransition)?
+		(temporalTransitions+=TemporalTransition)*
 	'}';
-
 
 Action :
 	actuator=[Actuator:ID] '<=' value=Signal;
 
-Transition :
+SimpleTransition :
 	condition=Condition '=>' next=[State:ID];
+
+TemporalTransition :
+	'after' duration=INT (logicalOperator=LogicalOperator (condition=Condition)+)? '=>' next=[State:ID];
 
 Condition:
     primaryCondition=PrimaryCondition
