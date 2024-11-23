@@ -104,6 +104,7 @@ function compile(app:App, fileNode:CompositeGeneratorNode){
         }
         fileNode.append(`) {
                     currentState = `+transition.next.ref?.name+`;
+                    delay(100);
                 }`
         )
 	}

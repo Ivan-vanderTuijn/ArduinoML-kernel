@@ -87,6 +87,7 @@ function compileTransition(transition, fileNode) {
     }
     fileNode.append(`) {
                     currentState = ` + ((_c = transition.next.ref) === null || _c === void 0 ? void 0 : _c.name) + `;
+                    delay(100);
                 }`);
 }
 //# sourceMappingURL=generator.js.map
