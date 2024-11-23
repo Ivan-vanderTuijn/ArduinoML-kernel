@@ -23,24 +23,14 @@ exports.generateInoFile = generateInoFile;
 function compile(app, fileNode) {
     var _a;
     fileNode.append(`
-//Wiring code generated from an ArduinoML model
-// Application name: ` + app.name + `
-
-long debounce = 200;
-enum STATE {` + app.states.map(s => s.name).join(', ') + `};
-
-STATE currentState = ` + ((_a = app.initial.ref) === null || _a === void 0 ? void 0 : _a.name) + `;`, langium_1.NL);
-    for (const brick of app.bricks) {
-        if ("inputPin" in brick) {
-            fileNode.append(`
-bool ` + brick.name + `BounceGuard = false;
-long ` + brick.name + `LastDebounceTime = 0;
-
-            `, langium_1.NL);
-        }
-    }
+        // Wiring code generated from an ArduinoML model COUCOU1
+        // Application name: ` + app.name + `
+    
+        enum STATE {` + app.states.map(s => s.name).join(', ') + `};
+    
+        STATE currentState = ` + ((_a = app.initial.ref) === null || _a === void 0 ? void 0 : _a.name) + `;`, langium_1.NL);
     fileNode.append(`
-	void setup(){`);
+        void setup(){`);
     for (const brick of app.bricks) {
         if ("inputPin" in brick) {
             compileSensor(brick, fileNode);
@@ -50,28 +40,29 @@ long ` + brick.name + `LastDebounceTime = 0;
         }
     }
     fileNode.append(`
-	}
-	void loop() {
-			switch(currentState){`, langium_1.NL);
+        }`, langium_1.NL);
+    fileNode.append(`
+        void loop() {
+            switch(currentState){
+        `);
     for (const state of app.states) {
         compileState(state, fileNode);
     }
     fileNode.append(`
-		}
-	}
-	`, langium_1.NL);
+	        }
+        }`, langium_1.NL);
 }
 function compileActuator(actuator, fileNode) {
     fileNode.append(`
-		pinMode(` + actuator.outputPin + `, OUTPUT); // ` + actuator.name + ` [Actuator]`);
+		    pinMode(` + actuator.outputPin + `, OUTPUT); // ` + actuator.name + ` [Actuator]`);
 }
 function compileSensor(sensor, fileNode) {
     fileNode.append(`
-		pinMode(` + sensor.inputPin + `, INPUT); // ` + sensor.name + ` [Sensor]`);
+		    pinMode(` + sensor.inputPin + `, INPUT_PULLUP); // ` + sensor.name + ` [Sensor]`);
 }
 function compileState(state, fileNode) {
     fileNode.append(`
-				case ` + state.name + `:`);
+            case ` + state.name + `:`);
     for (const action of state.actions) {
         compileAction(action, fileNode);
     }
@@ -79,21 +70,18 @@ function compileState(state, fileNode) {
         compileTransition(state.transition, fileNode);
     }
     fileNode.append(`
-				break;`);
+            break;`);
 }
 function compileAction(action, fileNode) {
     var _a;
     fileNode.append(`
-					digitalWrite(` + ((_a = action.actuator.ref) === null || _a === void 0 ? void 0 : _a.outputPin) + `,` + action.value.value + `);`);
+                digitalWrite(` + ((_a = action.actuator.ref) === null || _a === void 0 ? void 0 : _a.outputPin) + `,` + action.value.value + `);`);
 }
 function compileTransition(transition, fileNode) {
-    var _a, _b, _c, _d, _e, _f;
+    var _a, _b;
     fileNode.append(`
-		 			` + ((_a = transition.sensor.ref) === null || _a === void 0 ? void 0 : _a.name) + `BounceGuard = millis() - ` + ((_b = transition.sensor.ref) === null || _b === void 0 ? void 0 : _b.name) + `LastDebounceTime > debounce;
-					if( digitalRead(` + ((_c = transition.sensor.ref) === null || _c === void 0 ? void 0 : _c.inputPin) + `) == ` + transition.value.value + ` && ` + ((_d = transition.sensor.ref) === null || _d === void 0 ? void 0 : _d.name) + `BounceGuard) {
-						` + ((_e = transition.sensor.ref) === null || _e === void 0 ? void 0 : _e.name) + `LastDebounceTime = millis();
-						currentState = ` + ((_f = transition.next.ref) === null || _f === void 0 ? void 0 : _f.name) + `;
-					}
-		`);
+                if( digitalRead(` + ((_a = transition.sensor.ref) === null || _a === void 0 ? void 0 : _a.inputPin) + `) == ` + transition.value.value + `) {
+                    currentState = ` + ((_b = transition.next.ref) === null || _b === void 0 ? void 0 : _b.name) + `;
+                }`);
 }
 //# sourceMappingURL=generator.js.map

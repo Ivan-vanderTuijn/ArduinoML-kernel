@@ -9,7 +9,7 @@ entry App:
 		
 		'states'
 		states+=State
-		( states+=State)* 		
+		( states+=State)*
 	'}';
 
 Brick :
