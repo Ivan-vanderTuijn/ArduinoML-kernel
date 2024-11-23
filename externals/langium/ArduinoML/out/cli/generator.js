@@ -78,10 +78,15 @@ function compileAction(action, fileNode) {
                 digitalWrite(` + ((_a = action.actuator.ref) === null || _a === void 0 ? void 0 : _a.outputPin) + `,` + action.value.value + `);`);
 }
 function compileTransition(transition, fileNode) {
-    var _a, _b;
+    var _a, _b, _c;
     fileNode.append(`
-                if( digitalRead(` + ((_a = transition.sensor.ref) === null || _a === void 0 ? void 0 : _a.inputPin) + `) == ` + transition.value.value + `) {
-                    currentState = ` + ((_b = transition.next.ref) === null || _b === void 0 ? void 0 : _b.name) + `;
+                if(`);
+    fileNode.append(`digitalRead(` + ((_a = transition.condition.primaryCondition.sensor.ref) === null || _a === void 0 ? void 0 : _a.inputPin) + `) == ` + transition.condition.primaryCondition.value.value + ``);
+    for (const condition of transition.condition.secondaryConditions) {
+        fileNode.append(` ` + condition.logicalOperator.value + ` digitalRead(` + ((_b = condition.right.sensor.ref) === null || _b === void 0 ? void 0 : _b.inputPin) + `) == ` + condition.right.value.value + ``);
+    }
+    fileNode.append(`) {
+                    currentState = ` + ((_c = transition.next.ref) === null || _c === void 0 ? void 0 : _c.name) + `;
                 }`);
 }
 //# sourceMappingURL=generator.js.map

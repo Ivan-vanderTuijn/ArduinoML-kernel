@@ -94,9 +94,17 @@ function compile(app:App, fileNode:CompositeGeneratorNode){
 	}
 
 	function compileTransition(transition: Transition, fileNode:CompositeGeneratorNode) {
-		fileNode.append(`
-                if( digitalRead(`+transition.sensor.ref?.inputPin+`) == `+transition.value.value+`) {
+        fileNode.append(`
+                if(`
+        )
+        fileNode.append(`digitalRead(`+transition.condition.primaryCondition.sensor.ref?.inputPin+`) == `+transition.condition.primaryCondition.value.value+``)
+
+        for(const condition of transition.condition.secondaryConditions){
+            fileNode.append(` `+condition.logicalOperator.value+` digitalRead(`+condition.right.sensor.ref?.inputPin+`) == `+condition.right.value.value+``)
+        }
+        fileNode.append(`) {
                     currentState = `+transition.next.ref?.name+`;
-                }`)
+                }`
+        )
 	}
 

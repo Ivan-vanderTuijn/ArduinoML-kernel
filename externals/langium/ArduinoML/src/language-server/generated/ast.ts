@@ -54,6 +54,57 @@ export function isApp(item: unknown): item is App {
     return reflection.isInstance(item, App);
 }
 
+export interface Condition extends AstNode {
+    readonly $container: Transition;
+    readonly $type: 'Condition';
+    primaryCondition: PrimaryCondition
+    secondaryConditions: Array<SecondaryCondition>
+}
+
+export const Condition = 'Condition';
+
+export function isCondition(item: unknown): item is Condition {
+    return reflection.isInstance(item, Condition);
+}
+
+export interface LogicalOperator extends AstNode {
+    readonly $container: SecondaryCondition;
+    readonly $type: 'LogicalOperator';
+    value: string
+}
+
+export const LogicalOperator = 'LogicalOperator';
+
+export function isLogicalOperator(item: unknown): item is LogicalOperator {
+    return reflection.isInstance(item, LogicalOperator);
+}
+
+export interface PrimaryCondition extends AstNode {
+    readonly $container: Condition | SecondaryCondition;
+    readonly $type: 'PrimaryCondition';
+    sensor: Reference<Sensor>
+    value: Signal
+}
+
+export const PrimaryCondition = 'PrimaryCondition';
+
+export function isPrimaryCondition(item: unknown): item is PrimaryCondition {
+    return reflection.isInstance(item, PrimaryCondition);
+}
+
+export interface SecondaryCondition extends AstNode {
+    readonly $container: Condition;
+    readonly $type: 'SecondaryCondition';
+    logicalOperator: LogicalOperator
+    right: PrimaryCondition
+}
+
+export const SecondaryCondition = 'SecondaryCondition';
+
+export function isSecondaryCondition(item: unknown): item is SecondaryCondition {
+    return reflection.isInstance(item, SecondaryCondition);
+}
+
 export interface Sensor extends AstNode {
     readonly $container: App;
     readonly $type: 'Sensor';
@@ -68,7 +119,7 @@ export function isSensor(item: unknown): item is Sensor {
 }
 
 export interface Signal extends AstNode {
-    readonly $container: Action | Transition;
+    readonly $container: Action | PrimaryCondition;
     readonly $type: 'Signal';
     value: string
 }
@@ -96,9 +147,8 @@ export function isState(item: unknown): item is State {
 export interface Transition extends AstNode {
     readonly $container: State;
     readonly $type: 'Transition';
+    condition: Condition
     next: Reference<State>
-    sensor: Reference<Sensor>
-    value: Signal
 }
 
 export const Transition = 'Transition';
@@ -112,6 +162,10 @@ export interface ArduinoMlAstType {
     Actuator: Actuator
     App: App
     Brick: Brick
+    Condition: Condition
+    LogicalOperator: LogicalOperator
+    PrimaryCondition: PrimaryCondition
+    SecondaryCondition: SecondaryCondition
     Sensor: Sensor
     Signal: Signal
     State: State
@@ -121,7 +175,7 @@ export interface ArduinoMlAstType {
 export class ArduinoMlAstReflection extends AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return ['Action', 'Actuator', 'App', 'Brick', 'Sensor', 'Signal', 'State', 'Transition'];
+        return ['Action', 'Actuator', 'App', 'Brick', 'Condition', 'LogicalOperator', 'PrimaryCondition', 'SecondaryCondition', 'Sensor', 'Signal', 'State', 'Transition'];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -146,7 +200,7 @@ export class ArduinoMlAstReflection extends AbstractAstReflection {
             case 'Transition:next': {
                 return State;
             }
-            case 'Transition:sensor': {
+            case 'PrimaryCondition:sensor': {
                 return Sensor;
             }
             default: {
@@ -163,6 +217,14 @@ export class ArduinoMlAstReflection extends AbstractAstReflection {
                     mandatory: [
                         { name: 'bricks', type: 'array' },
                         { name: 'states', type: 'array' }
+                    ]
+                };
+            }
+            case 'Condition': {
+                return {
+                    name: 'Condition',
+                    mandatory: [
+                        { name: 'secondaryConditions', type: 'array' }
                     ]
                 };
             }
