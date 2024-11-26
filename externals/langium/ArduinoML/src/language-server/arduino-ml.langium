@@ -38,20 +38,32 @@ SimpleTransition :
 	condition=Condition '=>' next=[State:ID];
 
 TemporalTransition :
-	'after' duration=INT (logicalOperator=LogicalOperator (condition=Condition)+)? '=>' next=[State:ID];
+	condition=Condition '=>' next=[State:ID];
+
+TerminalCondition:
+    SensorCondition;
 
 Condition:
-    primaryCondition=PrimaryCondition
-    (secondaryConditions+=SecondaryCondition)*;
+    DoubleCondition | SimpleCondition | TerminalCondition;
 
-PrimaryCondition:
+SimpleCondition:
+    operator=UnaryLogicalOperator condition=Condition;
+
+DoubleCondition:
+    '(' conditionOne=Condition operator=BinaryLogicalOperator conditionTwo=Condition ')';
+
+SensorCondition infers TerminalCondition:
     sensor=[Sensor:ID] 'is' value=Signal;
 
-SecondaryCondition:
-    logicalOperator=LogicalOperator right=PrimaryCondition;
+TemporalCondition infers TerminalCondition:
+    'after' duration=INT;
 
-LogicalOperator:
+UnaryLogicalOperator:
+    value=NOT;
+
+BinaryLogicalOperator:
     value=(AND | OR);
+
 
 Signal:
     value=(HIGH | LOW);
@@ -60,6 +72,7 @@ terminal HIGH : 'HIGH';
 terminal LOW : 'LOW';
 terminal AND : '&&';
 terminal OR : '||';
+terminal NOT : '!';
 
 hidden terminal WS: /\s+/;
 terminal ID: /[_a-zA-Z][\w_]*/;

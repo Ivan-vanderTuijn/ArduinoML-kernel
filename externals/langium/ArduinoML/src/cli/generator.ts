@@ -4,11 +4,11 @@ import path from 'path';
 import {
     Action,
     Actuator,
-    App, Condition,
-    Sensor,
+    App, Condition, DoubleCondition,
+    Sensor, SimpleCondition,
     SimpleTransition,
     State,
-    TemporalTransition,
+    TerminalCondition,
 } from '../language-server/generated/ast';
 import { extractDestinationAndName } from './cli-util';
 
@@ -65,7 +65,7 @@ function compile(app:App, fileNode:CompositeGeneratorNode){
               running = false;
             }
         };
-    
+        
         Timer timer;`
          ,NL
      );
@@ -129,7 +129,7 @@ function compile(app:App, fileNode:CompositeGeneratorNode){
 			compileSimpleTransition(state.simpleTransition, fileNode)
 		}
         if (state.temporalTransitions !== undefined && state.temporalTransitions.length !== 0){
-            compileTemporalTransitions(state.temporalTransitions, fileNode)
+            //compileTemporalTransitions(state.temporalTransitions, fileNode)
         }
 		fileNode.append(`
             break;`
@@ -152,34 +152,40 @@ function compile(app:App, fileNode:CompositeGeneratorNode){
         )
 	}
 
-    // returns : if (myCondition == 1 && myCondition2 == 0 || ...)
     function compileCondition(condition: Condition, fileNode:CompositeGeneratorNode) {
         fileNode.append(`
-                if(`)
-        fileNode.append(`digitalRead(`+condition.primaryCondition.sensor.ref?.inputPin+`) == `+condition.primaryCondition.value.value+``)
-
-        for(const subCond of condition.secondaryConditions){
-            fileNode.append(` `+subCond.logicalOperator.value+` digitalRead(`+subCond.right.sensor.ref?.inputPin+`) == `+subCond.right.value.value+``)
-        }
+                if(`);
+        compileConditionSwitch(condition, fileNode);
         fileNode.append(`)`);
     }
 
-    function compileTemporalTransitions(transitions: TemporalTransition[], fileNode:CompositeGeneratorNode) {
-        for(const transition of transitions){
-            fileNode.append(`
-                timer.setTimeout([]() {`)
-                if (transition.condition !== undefined) {
-                    compileCondition(transition.condition, fileNode);
-                    fileNode.append(`{
-                    currentState = ` + transition.next.ref?.name + `;
-                }`);
-                }else {
-                    fileNode.append(`
-                    currentState = ` + transition.next.ref?.name + `;`);
-                }
-            fileNode.append(`
-                }, ` + transition.duration + `);`
-            )
+    function compileConditionSwitch(condition: Condition, fileNode:CompositeGeneratorNode) {
+        switch (condition.$type) {
+            case "TerminalCondition":
+                compileTerminalCondition(condition, fileNode);
+                break;
+            case "SimpleCondition":
+                compileSimpleCondition(condition, fileNode);
+                break;
+            case "DoubleCondition":
+                compileDoubleCondition(condition, fileNode);
+                break
         }
     }
 
+    function compileTerminalCondition(condition: TerminalCondition, fileNode:CompositeGeneratorNode) {
+        fileNode.append(`digitalRead(`+condition.sensor?.ref?.inputPin+`) == `+condition.value?.value+``);
+    }
+
+    function compileSimpleCondition(condition: SimpleCondition, fileNode:CompositeGeneratorNode) {
+        fileNode.append(``+condition.operator.value+``);
+        compileConditionSwitch(condition.condition, fileNode);
+    }
+
+    function compileDoubleCondition(condition: DoubleCondition, fileNode:CompositeGeneratorNode) {
+        fileNode.append(`(`);
+        compileConditionSwitch(condition.conditionOne, fileNode);
+        fileNode.append(` `+condition.operator.value+` `);
+        compileConditionSwitch(condition.conditionTwo, fileNode);
+        fileNode.append(`)`);
+    }

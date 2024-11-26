@@ -58,7 +58,7 @@ function compile(app, fileNode) {
               running = false;
             }
         };
-    
+        
         Timer timer;`, langium_1.NL);
     fileNode.append(`
         enum STATE {` + app.states.map(s => s.name).join(', ') + `};
@@ -106,7 +106,7 @@ function compileState(state, fileNode) {
         compileSimpleTransition(state.simpleTransition, fileNode);
     }
     if (state.temporalTransitions !== undefined && state.temporalTransitions.length !== 0) {
-        compileTemporalTransitions(state.temporalTransitions, fileNode);
+        //compileTemporalTransitions(state.temporalTransitions, fileNode)
     }
     fileNode.append(`
             break;`);
@@ -124,34 +124,38 @@ function compileSimpleTransition(transition, fileNode) {
                     delay(100);
                 }`);
 }
-// returns : if (myCondition == 1 && myCondition2 == 0 || ...)
 function compileCondition(condition, fileNode) {
-    var _a, _b;
     fileNode.append(`
                 if(`);
-    fileNode.append(`digitalRead(` + ((_a = condition.primaryCondition.sensor.ref) === null || _a === void 0 ? void 0 : _a.inputPin) + `) == ` + condition.primaryCondition.value.value + ``);
-    for (const subCond of condition.secondaryConditions) {
-        fileNode.append(` ` + subCond.logicalOperator.value + ` digitalRead(` + ((_b = subCond.right.sensor.ref) === null || _b === void 0 ? void 0 : _b.inputPin) + `) == ` + subCond.right.value.value + ``);
-    }
+    compileConditionSwitch(condition, fileNode);
     fileNode.append(`)`);
 }
-function compileTemporalTransitions(transitions, fileNode) {
-    var _a, _b;
-    for (const transition of transitions) {
-        fileNode.append(`
-                timer.setTimeout([]() {`);
-        if (transition.condition !== undefined) {
-            compileCondition(transition.condition, fileNode);
-            fileNode.append(`{
-                    currentState = ` + ((_a = transition.next.ref) === null || _a === void 0 ? void 0 : _a.name) + `;
-                }`);
-        }
-        else {
-            fileNode.append(`
-                    currentState = ` + ((_b = transition.next.ref) === null || _b === void 0 ? void 0 : _b.name) + `;`);
-        }
-        fileNode.append(`
-                }, ` + transition.duration + `);`);
+function compileConditionSwitch(condition, fileNode) {
+    switch (condition.$type) {
+        case "TerminalCondition":
+            compileTerminalCondition(condition, fileNode);
+            break;
+        case "SimpleCondition":
+            compileSimpleCondition(condition, fileNode);
+            break;
+        case "DoubleCondition":
+            compileDoubleCondition(condition, fileNode);
+            break;
     }
+}
+function compileTerminalCondition(condition, fileNode) {
+    var _a, _b, _c;
+    fileNode.append(`digitalRead(` + ((_b = (_a = condition.sensor) === null || _a === void 0 ? void 0 : _a.ref) === null || _b === void 0 ? void 0 : _b.inputPin) + `) == ` + ((_c = condition.value) === null || _c === void 0 ? void 0 : _c.value) + ``);
+}
+function compileSimpleCondition(condition, fileNode) {
+    fileNode.append(`` + condition.operator.value + ``);
+    compileConditionSwitch(condition.condition, fileNode);
+}
+function compileDoubleCondition(condition, fileNode) {
+    fileNode.append(`(`);
+    compileConditionSwitch(condition.conditionOne, fileNode);
+    fileNode.append(` ` + condition.operator.value + ` `);
+    compileConditionSwitch(condition.conditionTwo, fileNode);
+    fileNode.append(`)`);
 }
 //# sourceMappingURL=generator.js.map

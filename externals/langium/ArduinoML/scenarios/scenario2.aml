@@ -7,11 +7,11 @@ app RedButton initial state off {
 	states
 		off {
 			red_led <= LOW
-			buttonA is LOW && buttonB is LOW => on
+			!(buttonA is HIGH && (buttonA is LOW || buttonB is LOW)) => on
 		}
 		on {
 			red_led <= HIGH
-			buttonA is HIGH || buttonB is HIGH => off
+			( buttonA is HIGH || buttonB is HIGH ) => off
 		}
 }
 

@@ -37,12 +37,13 @@
     
         Timer timer;
 
-        enum STATE {off, on};
+        enum STATE {off, on, buzz};
     
         STATE currentState = off;
 
         void setup(){
 		    pinMode(7, OUTPUT); // red_led [Actuator]
+		    pinMode(8, OUTPUT); // buzzer [Actuator]
 		    pinMode(2, INPUT_PULLUP); // button [Sensor]
         }
 
@@ -52,6 +53,7 @@
         
             case off:
                 digitalWrite(7,LOW);
+                digitalWrite(8,LOW);
                 if(digitalRead(2) == LOW){
                     currentState = on;
                     delay(100);
@@ -59,6 +61,10 @@
             break;
             case on:
                 digitalWrite(7,HIGH);
+                if(digitalRead(2) == HIGH){
+                    currentState = buzz;
+                    delay(100);
+                }
                 timer.setTimeout([]() {
                 if(digitalRead(2) == HIGH){
                     currentState = off;
@@ -67,6 +73,13 @@
                 timer.setTimeout([]() {
                     currentState = off;
                 }, 400);
+            break;
+            case buzz:
+                digitalWrite(8,HIGH);
+                if(digitalRead(2) == HIGH){
+                    currentState = off;
+                    delay(100);
+                }
             break;
 	        }
         }
