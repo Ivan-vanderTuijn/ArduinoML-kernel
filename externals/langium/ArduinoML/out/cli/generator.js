@@ -25,44 +25,9 @@ function compile(app, fileNode) {
     fileNode.append(`
         // Wiring code generated from an ArduinoML model COUCOU1
         // Application name: ` + app.name + `
-        
-        class Timer {
-          private:
-            unsigned long startTime;
-            unsigned long duration;
-            bool running;
-            void (*callback)();
-        
-          public:
-            Timer() {
-              running = false;
-            }
-        
-            void setTimeout(void (*cb)(), unsigned long d) {
-              if (!running) {
-                callback = cb;
-                duration = d;
-                startTime = millis();
-                running = true;
-              }
-            }
-        
-            void update() {
-              if (running && (millis() - startTime >= duration)) {
-                running = false;
-                callback();
-              }
-            }
-        
-            void cancel() {
-              running = false;
-            }
-        };
-        
-        Timer timer;`, langium_1.NL);
-    fileNode.append(`
         enum STATE {` + app.states.map(s => s.name).join(', ') + `};
     
+        unsigned long startTime = millis();
         STATE currentState = ` + ((_a = app.initial.ref) === null || _a === void 0 ? void 0 : _a.name) + `;`, langium_1.NL);
     fileNode.append(`
         void setup(){`);
@@ -78,7 +43,6 @@ function compile(app, fileNode) {
         }`, langium_1.NL);
     fileNode.append(`
         void loop() {
-            timer.update();
             switch(currentState){
         `);
     for (const state of app.states) {
@@ -102,11 +66,8 @@ function compileState(state, fileNode) {
     for (const action of state.actions) {
         compileAction(action, fileNode);
     }
-    if (state.simpleTransition !== undefined) {
-        compileSimpleTransition(state.simpleTransition, fileNode);
-    }
-    if (state.temporalTransitions !== undefined && state.temporalTransitions.length !== 0) {
-        //compileTemporalTransitions(state.temporalTransitions, fileNode)
+    if (state.transition !== undefined) {
+        compileSimpleTransition(state.transition, fileNode);
     }
     fileNode.append(`
             break;`);
@@ -121,7 +82,7 @@ function compileSimpleTransition(transition, fileNode) {
     compileCondition(transition.condition, fileNode);
     fileNode.append(`{
                     currentState = ` + ((_a = transition.next.ref) === null || _a === void 0 ? void 0 : _a.name) + `;
-                    delay(100);
+                    startTime = millis();
                 }`);
 }
 function compileCondition(condition, fileNode) {
@@ -132,20 +93,33 @@ function compileCondition(condition, fileNode) {
 }
 function compileConditionSwitch(condition, fileNode) {
     switch (condition.$type) {
-        case "TerminalCondition":
-            compileTerminalCondition(condition, fileNode);
-            break;
         case "SimpleCondition":
             compileSimpleCondition(condition, fileNode);
             break;
         case "DoubleCondition":
             compileDoubleCondition(condition, fileNode);
             break;
+        default: // TerminalCondition
+            compileTerminalConditionSwitch(condition, fileNode);
+            break;
     }
 }
-function compileTerminalCondition(condition, fileNode) {
+function compileTerminalConditionSwitch(condition, fileNode) {
+    switch (condition.$type) {
+        case "SensorCondition":
+            compileSensorCondition(condition, fileNode);
+            break;
+        case "TemporalCondition":
+            compileTemporalCondition(condition, fileNode);
+            break;
+    }
+}
+function compileSensorCondition(condition, fileNode) {
     var _a, _b, _c;
     fileNode.append(`digitalRead(` + ((_b = (_a = condition.sensor) === null || _a === void 0 ? void 0 : _a.ref) === null || _b === void 0 ? void 0 : _b.inputPin) + `) == ` + ((_c = condition.value) === null || _c === void 0 ? void 0 : _c.value) + ``);
+}
+function compileTemporalCondition(condition, fileNode) {
+    fileNode.append(`(millis() - startTime >= ` + condition.duration + `)`);
 }
 function compileSimpleCondition(condition, fileNode) {
     fileNode.append(`` + condition.operator.value + ``);

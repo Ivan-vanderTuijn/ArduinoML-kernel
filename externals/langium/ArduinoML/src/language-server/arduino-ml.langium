@@ -27,35 +27,31 @@ State :
 	name=ID '{'
 		actions+=Action
 		(actions+=Action)* 
-		(simpleTransition=SimpleTransition)?
-		(temporalTransitions+=TemporalTransition)*
+		(transition=Transition)*
 	'}';
 
 Action :
 	actuator=[Actuator:ID] '<=' value=Signal;
 
-SimpleTransition :
+Transition :
 	condition=Condition '=>' next=[State:ID];
-
-TemporalTransition :
-	condition=Condition '=>' next=[State:ID];
-
-TerminalCondition:
-    SensorCondition;
 
 Condition:
     DoubleCondition | SimpleCondition | TerminalCondition;
 
-SimpleCondition:
-    operator=UnaryLogicalOperator condition=Condition;
-
 DoubleCondition:
     '(' conditionOne=Condition operator=BinaryLogicalOperator conditionTwo=Condition ')';
 
-SensorCondition infers TerminalCondition:
+SimpleCondition:
+    operator=UnaryLogicalOperator condition=Condition;
+
+TerminalCondition:
+    SensorCondition | TemporalCondition;
+
+SensorCondition:
     sensor=[Sensor:ID] 'is' value=Signal;
 
-TemporalCondition infers TerminalCondition:
+TemporalCondition:
     'after' duration=INT;
 
 UnaryLogicalOperator:
@@ -63,7 +59,6 @@ UnaryLogicalOperator:
 
 BinaryLogicalOperator:
     value=(AND | OR);
-
 
 Signal:
     value=(HIGH | LOW);

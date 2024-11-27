@@ -5,10 +5,9 @@ import {
     Action,
     Actuator,
     App, Condition, DoubleCondition,
-    Sensor, SimpleCondition,
-    SimpleTransition,
-    State,
-    TerminalCondition,
+    Sensor, SensorCondition, SimpleCondition,
+    State, TemporalCondition,
+    TerminalCondition, Transition,
 } from '../language-server/generated/ast';
 import { extractDestinationAndName } from './cli-util';
 
@@ -32,47 +31,9 @@ function compile(app:App, fileNode:CompositeGeneratorNode){
     fileNode.append(`
         // Wiring code generated from an ArduinoML model COUCOU1
         // Application name: `+app.name+`
-        
-        class Timer {
-          private:
-            unsigned long startTime;
-            unsigned long duration;
-            bool running;
-            void (*callback)();
-        
-          public:
-            Timer() {
-              running = false;
-            }
-        
-            void setTimeout(void (*cb)(), unsigned long d) {
-              if (!running) {
-                callback = cb;
-                duration = d;
-                startTime = millis();
-                running = true;
-              }
-            }
-        
-            void update() {
-              if (running && (millis() - startTime >= duration)) {
-                running = false;
-                callback();
-              }
-            }
-        
-            void cancel() {
-              running = false;
-            }
-        };
-        
-        Timer timer;`
-         ,NL
-     );
-
-    fileNode.append(`
         enum STATE {`+app.states.map(s => s.name).join(', ')+`};
     
+        unsigned long startTime = millis();
         STATE currentState = `+app.initial.ref?.name+`;`
         ,NL
     );
@@ -93,7 +54,6 @@ function compile(app:App, fileNode:CompositeGeneratorNode){
 
     fileNode.append(`
         void loop() {
-            timer.update();
             switch(currentState){
         `
     )
@@ -125,12 +85,9 @@ function compile(app:App, fileNode:CompositeGeneratorNode){
 		for(const action of state.actions){
 			compileAction(action, fileNode)
 		}
-		if (state.simpleTransition !== undefined){
-			compileSimpleTransition(state.simpleTransition, fileNode)
+		if (state.transition !== undefined){
+			compileSimpleTransition(state.transition, fileNode)
 		}
-        if (state.temporalTransitions !== undefined && state.temporalTransitions.length !== 0){
-            //compileTemporalTransitions(state.temporalTransitions, fileNode)
-        }
 		fileNode.append(`
             break;`
         )
@@ -143,11 +100,11 @@ function compile(app:App, fileNode:CompositeGeneratorNode){
         )
 	}
 
-	function compileSimpleTransition(transition: SimpleTransition, fileNode:CompositeGeneratorNode) {
+	function compileSimpleTransition(transition: Transition, fileNode:CompositeGeneratorNode) {
         compileCondition(transition.condition, fileNode);
         fileNode.append(`{
                     currentState = `+transition.next.ref?.name+`;
-                    delay(100);
+                    startTime = millis();
                 }`
         )
 	}
@@ -161,21 +118,35 @@ function compile(app:App, fileNode:CompositeGeneratorNode){
 
     function compileConditionSwitch(condition: Condition, fileNode:CompositeGeneratorNode) {
         switch (condition.$type) {
-            case "TerminalCondition":
-                compileTerminalCondition(condition, fileNode);
-                break;
             case "SimpleCondition":
                 compileSimpleCondition(condition, fileNode);
                 break;
             case "DoubleCondition":
                 compileDoubleCondition(condition, fileNode);
-                break
+                break;
+            default: // TerminalCondition
+                compileTerminalConditionSwitch(condition, fileNode);
+                break;
         }
     }
 
-    function compileTerminalCondition(condition: TerminalCondition, fileNode:CompositeGeneratorNode) {
+function compileTerminalConditionSwitch(condition: TerminalCondition, fileNode:CompositeGeneratorNode) {
+    switch (condition.$type) {
+        case "SensorCondition":
+            compileSensorCondition(condition, fileNode);
+            break;
+        case "TemporalCondition":
+            compileTemporalCondition(condition, fileNode);
+            break;
+    }
+}
+
+    function compileSensorCondition(condition: SensorCondition, fileNode:CompositeGeneratorNode) {
         fileNode.append(`digitalRead(`+condition.sensor?.ref?.inputPin+`) == `+condition.value?.value+``);
     }
+
+    function compileTemporalCondition(condition: TemporalCondition, fileNode:CompositeGeneratorNode) {
+        fileNode.append(`(millis() - startTime >= `+condition.duration+`)`);    }
 
     function compileSimpleCondition(condition: SimpleCondition, fileNode:CompositeGeneratorNode) {
         fileNode.append(``+condition.operator.value+``);

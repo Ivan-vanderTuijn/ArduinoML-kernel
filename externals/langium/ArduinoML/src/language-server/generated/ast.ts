@@ -22,6 +22,14 @@ export function isCondition(item: unknown): item is Condition {
     return reflection.isInstance(item, Condition);
 }
 
+export type TerminalCondition = SensorCondition | TemporalCondition;
+
+export const TerminalCondition = 'TerminalCondition';
+
+export function isTerminalCondition(item: unknown): item is TerminalCondition {
+    return reflection.isInstance(item, TerminalCondition);
+}
+
 export interface Action extends AstNode {
     readonly $container: State;
     readonly $type: 'Action';
@@ -75,7 +83,7 @@ export function isBinaryLogicalOperator(item: unknown): item is BinaryLogicalOpe
 }
 
 export interface DoubleCondition extends AstNode {
-    readonly $container: DoubleCondition | SimpleCondition | SimpleTransition | TemporalTransition;
+    readonly $container: DoubleCondition | SimpleCondition | Transition;
     readonly $type: 'DoubleCondition';
     conditionOne: Condition
     conditionTwo: Condition
@@ -101,8 +109,21 @@ export function isSensor(item: unknown): item is Sensor {
     return reflection.isInstance(item, Sensor);
 }
 
+export interface SensorCondition extends AstNode {
+    readonly $container: DoubleCondition | SimpleCondition | Transition;
+    readonly $type: 'SensorCondition';
+    sensor: Reference<Sensor>
+    value: Signal
+}
+
+export const SensorCondition = 'SensorCondition';
+
+export function isSensorCondition(item: unknown): item is SensorCondition {
+    return reflection.isInstance(item, SensorCondition);
+}
+
 export interface Signal extends AstNode {
-    readonly $container: Action | TerminalCondition;
+    readonly $container: Action | SensorCondition;
     readonly $type: 'Signal';
     value: string
 }
@@ -114,7 +135,7 @@ export function isSignal(item: unknown): item is Signal {
 }
 
 export interface SimpleCondition extends AstNode {
-    readonly $container: DoubleCondition | SimpleCondition | SimpleTransition | TemporalTransition;
+    readonly $container: DoubleCondition | SimpleCondition | Transition;
     readonly $type: 'SimpleCondition';
     condition: Condition
     operator: UnaryLogicalOperator
@@ -126,26 +147,12 @@ export function isSimpleCondition(item: unknown): item is SimpleCondition {
     return reflection.isInstance(item, SimpleCondition);
 }
 
-export interface SimpleTransition extends AstNode {
-    readonly $container: State;
-    readonly $type: 'SimpleTransition';
-    condition: Condition
-    next: Reference<State>
-}
-
-export const SimpleTransition = 'SimpleTransition';
-
-export function isSimpleTransition(item: unknown): item is SimpleTransition {
-    return reflection.isInstance(item, SimpleTransition);
-}
-
 export interface State extends AstNode {
     readonly $container: App;
     readonly $type: 'State';
     actions: Array<Action>
     name: string
-    simpleTransition?: SimpleTransition
-    temporalTransitions: Array<TemporalTransition>
+    transition?: Transition
 }
 
 export const State = 'State';
@@ -154,31 +161,29 @@ export function isState(item: unknown): item is State {
     return reflection.isInstance(item, State);
 }
 
-export interface TemporalTransition extends AstNode {
+export interface TemporalCondition extends AstNode {
+    readonly $container: DoubleCondition | SimpleCondition | Transition;
+    readonly $type: 'TemporalCondition';
+    duration: number
+}
+
+export const TemporalCondition = 'TemporalCondition';
+
+export function isTemporalCondition(item: unknown): item is TemporalCondition {
+    return reflection.isInstance(item, TemporalCondition);
+}
+
+export interface Transition extends AstNode {
     readonly $container: State;
-    readonly $type: 'TemporalTransition';
+    readonly $type: 'Transition';
     condition: Condition
     next: Reference<State>
 }
 
-export const TemporalTransition = 'TemporalTransition';
+export const Transition = 'Transition';
 
-export function isTemporalTransition(item: unknown): item is TemporalTransition {
-    return reflection.isInstance(item, TemporalTransition);
-}
-
-export interface TerminalCondition extends AstNode {
-    readonly $container: DoubleCondition | SimpleCondition | SimpleTransition | TemporalTransition;
-    readonly $type: 'TerminalCondition';
-    duration?: number
-    sensor?: Reference<Sensor>
-    value?: Signal
-}
-
-export const TerminalCondition = 'TerminalCondition';
-
-export function isTerminalCondition(item: unknown): item is TerminalCondition {
-    return reflection.isInstance(item, TerminalCondition);
+export function isTransition(item: unknown): item is Transition {
+    return reflection.isInstance(item, Transition);
 }
 
 export interface UnaryLogicalOperator extends AstNode {
@@ -202,19 +207,20 @@ export interface ArduinoMlAstType {
     Condition: Condition
     DoubleCondition: DoubleCondition
     Sensor: Sensor
+    SensorCondition: SensorCondition
     Signal: Signal
     SimpleCondition: SimpleCondition
-    SimpleTransition: SimpleTransition
     State: State
-    TemporalTransition: TemporalTransition
+    TemporalCondition: TemporalCondition
     TerminalCondition: TerminalCondition
+    Transition: Transition
     UnaryLogicalOperator: UnaryLogicalOperator
 }
 
 export class ArduinoMlAstReflection extends AbstractAstReflection {
 
     getAllTypes(): string[] {
-        return ['Action', 'Actuator', 'App', 'BinaryLogicalOperator', 'Brick', 'Condition', 'DoubleCondition', 'Sensor', 'Signal', 'SimpleCondition', 'SimpleTransition', 'State', 'TemporalTransition', 'TerminalCondition', 'UnaryLogicalOperator'];
+        return ['Action', 'Actuator', 'App', 'BinaryLogicalOperator', 'Brick', 'Condition', 'DoubleCondition', 'Sensor', 'SensorCondition', 'Signal', 'SimpleCondition', 'State', 'TemporalCondition', 'TerminalCondition', 'Transition', 'UnaryLogicalOperator'];
     }
 
     protected override computeIsSubtype(subtype: string, supertype: string): boolean {
@@ -227,6 +233,10 @@ export class ArduinoMlAstReflection extends AbstractAstReflection {
             case SimpleCondition:
             case TerminalCondition: {
                 return this.isSubtype(Condition, supertype);
+            }
+            case SensorCondition:
+            case TemporalCondition: {
+                return this.isSubtype(TerminalCondition, supertype);
             }
             default: {
                 return false;
@@ -241,11 +251,10 @@ export class ArduinoMlAstReflection extends AbstractAstReflection {
                 return Actuator;
             }
             case 'App:initial':
-            case 'SimpleTransition:next':
-            case 'TemporalTransition:next': {
+            case 'Transition:next': {
                 return State;
             }
-            case 'TerminalCondition:sensor': {
+            case 'SensorCondition:sensor': {
                 return Sensor;
             }
             default: {
@@ -269,8 +278,7 @@ export class ArduinoMlAstReflection extends AbstractAstReflection {
                 return {
                     name: 'State',
                     mandatory: [
-                        { name: 'actions', type: 'array' },
-                        { name: 'temporalTransitions', type: 'array' }
+                        { name: 'actions', type: 'array' }
                     ]
                 };
             }
